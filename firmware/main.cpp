@@ -5,20 +5,22 @@
 
 const char* ssid = "your_SSID";
 const char* password = "your_PASSWORD";
-const char* serverURL = "http://<your_ip_address>/led";
+const char* serverIP = "http://<your_ip_address>:5000";
 
-#define LED_PIN 2
-
-String mode = "OFF";
-int interval = 500; // default for blink/fade
-unsigned long lastUpdate = 0;
-int brightness = 0; // for fade
-bool ledOn = false;
+// LED pins and IDs
+const int LED_PINS[] = {2, 4, 5};
+const char* LED_IDS[] = {"led1", "led2", "led3"};
+const int NUM_LEDS = sizeof(LED_PINS)/sizeof(LED_PINS[0]);
 
 void setup() {
   Serial.begin(115200);
-  pinMode(LED_PIN, OUTPUT);
 
+  for (int i = 0; i < NUM_LEDS; i++) {
+    pinMode(LED_PINS[i], OUTPUT);
+    digitalWrite(LED_PINS[i], LOW);
+  }
+
+  Serial.println("Connecting to WiFi...");
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -27,48 +29,32 @@ void setup() {
   Serial.println("\nWiFi connected!");
 }
 
-void fetchLEDState() {
+void loop() {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
-    http.begin(serverURL);
-    int code = http.GET();
-    if (code > 0) {
-      String payload = http.getString();
-      DynamicJsonDocument doc(256);
-      if (!deserializeJson(doc, payload)) return;
 
-      mode = doc["mode"] | "OFF";
-      interval = doc["interval"] | 500;
+    for (int i = 0; i < NUM_LEDS; i++) {
+      String url = String(serverIP) + "/led/" + LED_IDS[i];
+      http.begin(url);
+      int httpResponseCode = http.GET();
+
+      if (httpResponseCode > 0) {
+        String payload = http.getString();
+        Serial.println("Response for " + String(LED_IDS[i]) + ": " + payload);
+
+        DynamicJsonDocument doc(256);
+        if (!deserializeJson(doc, payload)) continue;
+
+        String state = doc["state"];
+        if (state == "ON") digitalWrite(LED_PINS[i], HIGH);
+        else digitalWrite(LED_PINS[i], LOW);
+
+      } else {
+        Serial.println("Error on HTTP request for " + String(LED_IDS[i]) + ": " + httpResponseCode);
+      }
+      http.end();
     }
-    http.end();
-  }
-}
 
-void loop() {
-  static unsigned long lastFetch = 0;
-  unsigned long now = millis();
-
-  if (now - lastFetch > 5000) { // fetch every 5 sec
-    fetchLEDState();
-    lastFetch = now;
-  }
-
-  if (mode == "ON") {
-    digitalWrite(LED_PIN, HIGH);
-  } else if (mode == "OFF") {
-    digitalWrite(LED_PIN, LOW);
-  } else if (mode == "BLINK") {
-    if (now - lastUpdate >= interval) {
-      ledOn = !ledOn;
-      digitalWrite(LED_PIN, ledOn ? HIGH : LOW);
-      lastUpdate = now;
-    }
-  } else if (mode == "FADE") {
-    if (now - lastUpdate >= interval) {
-      analogWrite(LED_PIN, brightness);
-      brightness += 5;
-      if (brightness > 255) brightness = 0;
-      lastUpdate = now;
-    }
+    delay(5000); // poll every 5 seconds
   }
 }

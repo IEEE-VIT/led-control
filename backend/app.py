@@ -1,19 +1,25 @@
 from flask import Flask, request
+
 app = Flask(__name__)
-led_state = "OFF"
+
+# Keep a single LED but now with mode
+led_state = {"mode": "OFF", "interval": 500}  # default interval for blink/fade
+
 @app.route('/led', methods=['GET'])
 def get_led_state():
-    return led_state
+    return led_state, 200
 
 @app.route('/led', methods=['POST'])
 def set_led_state():
     global led_state
     data = request.json
-    if 'state' in data and data['state'] in ['ON', 'OFF']:
-        led_state = data['state']
-        return {'status': 'success', 'state': led_state}, 200
+    if 'mode' in data and data['mode'] in ['ON', 'OFF', 'BLINK', 'FADE']:
+        led_state["mode"] = data["mode"]
+        if "interval" in data:
+            led_state["interval"] = data["interval"]
+        return {'status': 'success', 'led': led_state}, 200
     else:
-        return {'status': 'error', 'message': 'Invalid state'}, 400
-    
+        return {'status': 'error', 'message': 'Invalid mode'}, 400
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0',port=5000)
+    app.run(host='0.0.0.0', port=5000)

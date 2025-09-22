@@ -1,19 +1,30 @@
+
 from flask import Flask, request
 app = Flask(__name__)
-led_state = "OFF"
-@app.route('/led', methods=['GET'])
-def get_led_state():
-    return led_state
 
-@app.route('/led', methods=['POST'])
-def set_led_state():
-    global led_state
-    data = request.json
-    if 'state' in data and data['state'] in ['ON', 'OFF']:
-        led_state = data['state']
-        return {'status': 'success', 'state': led_state}, 200
+# Dictionary to store state of each LED by id
+led_states = {
+    "1": "OFF",
+    "2": "OFF",
+    "3": "OFF"
+}
+
+@app.route('/led/<led_id>', methods=['GET'])
+def get_led_state(led_id):
+    state = led_states.get(led_id)
+    if state is not None:
+        return state
     else:
-        return {'status': 'error', 'message': 'Invalid state'}, 400
-    
+        return {'status': 'error', 'message': 'Invalid LED ID'}, 404
+
+@app.route('/led/<led_id>', methods=['POST'])
+def set_led_state(led_id):
+    data = request.json
+    if led_id in led_states and 'state' in data and data['state'] in ['ON', 'OFF']:
+        led_states[led_id] = data['state']
+        return {'status': 'success', 'state': led_states[led_id]}, 200
+    else:
+        return {'status': 'error', 'message': 'Invalid LED ID or state'}, 400
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0',port=5000)
+    app.run(host='0.0.0.0', port=5000)
